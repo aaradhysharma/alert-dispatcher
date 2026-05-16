@@ -1,0 +1,48 @@
+---
+description: Core standards for the alert dispatcher project (stack, logging, testing, working style)
+alwaysApply: true
+---
+
+# Alert Dispatcher Project Standards
+
+## Stack
+
+- Python 3, Pydantic v2, `pydantic-settings`
+- SQLite for now (do not introduce another DB without explicit ask)
+
+## Do Not Touch
+
+These files are owned/locked. Do not edit unless explicitly asked:
+
+- `settings.py`
+- `.env.example`
+- `pyproject.toml`
+
+If a change seems required there, stop and ask first.
+
+## Logging (Important)
+
+- **Never log full API keys.** Log only the last 4 chars, prefixed with `***`.
+- **Always mask emails** before logging.
+
+```python
+# bad
+logger.info(f"using key {api_key}")
+logger.info(f"sending to {user.email}")
+
+# good
+logger.info(f"using key ***{api_key[-4:]}")
+logger.info(f"sending to {mask_email(user.email)}")  # a***@example.com
+```
+
+## Tests
+
+- Behaviour-changing tests run in GitHub Actions and may hit real email/Slack.
+- For each behaviour change, cover: **happy path, bad input, muted user**.
+
+## Working Style
+
+- **No monolith diffs.** Ship small, focused PRs — one concern per diff.
+- **Explain tradeoffs** in the PR/chat message whenever a non-obvious choice is made (e.g. SQLite vs Postgres, sync vs async).
+- **Don't write overly clever code.** Prefer readable over compact.
+- **Comment thoroughly** — explain *why*, not *what*. Especially around retries, masking, rate limits, and any external I/O.
