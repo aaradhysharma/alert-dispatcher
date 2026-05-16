@@ -1,12 +1,19 @@
-"""Mock Slack provider.
-
-The mock provider does not raise -- there is no demo failure mode
-for Slack in docs/questions.md. If/when one is added, mirror the
-shape of `providers.email` (custom exception + retry persistence
-in the dispatch service).
 """
+Mock Slack provider.
 
-from __future__ import annotations
+Slack does NOT have a "FAIL" demo failure mode in the brief, so this
+module just logs. If we ever add real Slack delivery, the shape to
+copy is the email provider:
+    - a custom exception class (e.g. SlackProviderError)
+    - the dispatch service catches it and decides what to persist
+
+What we deliberately log:
+    - the DM target ("@alice") -- it's a handle, not PII
+    - the message length, not the message body
+    - only the WEBHOOK HOST -- never the path, because Slack webhook
+      URLs contain a secret token in the path. Logging the host lets
+      us see "we're pointing at the right cluster" without leaking it.
+"""
 
 import logging
 from urllib.parse import urlparse
@@ -17,17 +24,17 @@ logger = logging.getLogger(__name__)
 
 
 def _webhook_host() -> str:
-    """Extract just the host from the configured webhook URL.
+    """Pull just the host (hooks.slack.com) out of the configured URL.
 
-    We log only the host so a misconfigured webhook path (which can
-    contain secret tokens) is not leaked into log aggregation.
+    If the URL is malformed, urlparse returns an empty netloc; we
+    return a placeholder so the log line still reads cleanly.
     """
     webhook = get_settings().mock_slack_webhook
     return urlparse(webhook).netloc or "(invalid webhook URL)"
 
 
 def send_slack(dm: str, text: str) -> None:
-    """Send a Slack DM via the mock provider."""
+    """Pretend to send a Slack DM by logging."""
     logger.info(
         "MOCK SLACK sent dm=%s text_len=%s webhook_host=%s",
         dm,

@@ -1,1 +1,1 @@
-"""Persistence adapters: mute list (in-memory) and retry queue (SQLite)."""
+"""Persistence: in-memory mute set, SQLite retry queue."""

@@ -1,1 +1,1 @@
-"""Outbound notification provider integrations (mock implementations)."""
+"""Outbound notification providers (mock implementations)."""

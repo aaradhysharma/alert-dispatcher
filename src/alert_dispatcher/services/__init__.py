@@ -1,1 +1,1 @@
-"""Application services: orchestration that has no HTTP concerns."""
+"""Application services. No FastAPI imports allowed in here."""

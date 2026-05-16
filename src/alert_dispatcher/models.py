@@ -1,66 +1,73 @@
-"""Shared Pydantic models.
+"""
+Pydantic models used across the app.
 
-This single file is intentional for the current scope. If the project
-grows, the natural next split is `models/dispatch.py`, `models/users.py`,
-`models/retry.py` -- but for an exercise-sized service one file keeps
-imports cheap and the surface obvious.
+Why one file:
+    The project is small (one endpoint, a handful of channels). Splitting
+    these models across a `models/` package would mean lots of tiny files
+    and more imports for no real benefit. If this grows, the natural next
+    step is to split per-feature: dispatch.py, users.py, retry.py.
+
+Why Pydantic at all:
+    FastAPI uses these classes to:
+      1. Parse the incoming JSON.
+      2. Validate it (e.g. user_id must be a non-empty string).
+      3. Auto-return 422 with field-level errors if anything is wrong.
+    That's why we don't need a custom validation handler in api/dispatch.py.
 """
 
-from __future__ import annotations
-
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 
+# ---------------------------------------------------------------------------
+# Request body for POST /v1/dispatch
+# ---------------------------------------------------------------------------
 class DispatchRequest(BaseModel):
-    """Inbound payload for POST /v1/dispatch.
+    # The target user's id. min_length=1 so an empty string fails validation.
+    user_id: str = Field(..., min_length=1)
 
-    FastAPI/Pydantic enforce these constraints automatically and respond
-    with a 422 on violation, so the HTTP layer never needs custom
-    validation handlers.
-    """
+    # The kind of event we're notifying about (e.g. "UserSignedUp").
+    event_type: str = Field(..., min_length=1)
 
-    user_id: str = Field(..., min_length=1, description="Target user identifier.")
-    event_type: str = Field(..., min_length=1, description="Domain event name.")
-    payload: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Arbitrary event-specific data; opaque to the dispatcher.",
-    )
+    # Free-form data attached to the event. Could be empty {}; we don't
+    # peek inside, we just pass it through to the channels.
+    payload: dict[str, Any] = Field(default_factory=dict)
 
 
+# ---------------------------------------------------------------------------
+# A user record returned by users.py
+# ---------------------------------------------------------------------------
 class User(BaseModel):
-    """Resolved user record returned by the user directory."""
-
     user_id: str
     email: str
-    slack_dm: str
+    slack_dm: str  # e.g. "@alice"
 
 
+# ---------------------------------------------------------------------------
+# Result of trying ONE channel for ONE user
+# ---------------------------------------------------------------------------
+# Note: status is a plain string (not an Enum) on purpose. We log it,
+# return it in JSON, and check it in tests; an Enum would just add
+# .value calls everywhere without buying us anything.
 class ChannelResult(BaseModel):
-    """Result of attempting to deliver a notification on a single channel."""
-
-    channel: Literal["email", "slack"]
-    status: Literal["sent", "failed"]
-    # `to` is always the masked form for email and the raw DM handle for slack;
-    # this is the value safe to expose in API responses and logs.
-    to: str
-    # Populated only on failure. Short, sanitized provider error text.
-    error: str | None = None
-    # Populated only on email failure: the row id in the retry queue,
-    # so callers can correlate this response with the persisted record.
-    retry_id: int | None = None
+    channel: str          # "email" or "slack"
+    status: str           # "sent" or "failed"
+    to: str               # masked email for email; raw DM handle for slack
+    error: str | None = None      # only set when status == "failed"
+    retry_id: int | None = None   # only set when an email failure was persisted
 
 
-# Top-level outcome of a dispatch call. We expose this as a string union
-# (rather than an enum) to keep API JSON shape stable and easy to read.
-DispatchStatus = Literal["dispatched", "partial_failure", "muted", "no_op"]
-
-
+# ---------------------------------------------------------------------------
+# Top-level response body for POST /v1/dispatch
+# ---------------------------------------------------------------------------
+# `status` is one of:
+#   "dispatched"        -> all channels succeeded
+#   "partial_failure"   -> at least one channel failed (today: only email)
+#   "muted"             -> user is on the mute list, no sends were attempted
+#   "no_op"             -> user exists but has no channel preferences
 class DispatchResponse(BaseModel):
-    """Structured response body for POST /v1/dispatch."""
-
-    status: DispatchStatus
+    status: str
     user_id: str
     event_type: str
     channels: list[ChannelResult] = Field(default_factory=list)
