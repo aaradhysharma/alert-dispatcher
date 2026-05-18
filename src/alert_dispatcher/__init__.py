@@ -4,4 +4,4 @@
 # The packaged version in pyproject.toml stays at 0.1.0 because that
 # file is locked per .cursor/rules/project-standards.mdc; the two are
 # allowed to drift until the next coordinated release. This is just a test.
-__version__ = "0.2.0"
+__version__ = "0.3.0"

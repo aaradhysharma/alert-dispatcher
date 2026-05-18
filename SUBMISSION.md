@@ -1,6 +1,6 @@
 # Candidate submission notes
 
-Version: `0.2.0` (runtime, see `src/alert_dispatcher/__init__.py`).
+Version: `0.3.0` (runtime, see `src/alert_dispatcher/__init__.py`).
 The packaged version in `pyproject.toml` is intentionally left at
 `0.1.0` because that file is locked per `.cursor/rules/project-standards.mdc`.
 
@@ -27,18 +27,31 @@ pytest -q
 Smoke calls:
 
 ```bash
-# happy path
+# health
+curl -sS http://127.0.0.1:8000/health
+
+# happy path (user-1: email + slack)
 curl -sS -X POST http://127.0.0.1:8000/v1/dispatch \
   -H 'Content-Type: application/json' \
   -d '{"user_id":"user-1","event_type":"UserSignedUp","payload":{"plan":"pro"}}'
 
-# forced email failure (substring "FAIL", case-insensitive)
+# mute user-1, then dispatch — returns {"status":"muted","channels":[]}
+curl -sS -X POST http://127.0.0.1:8000/v1/mute \
+  -H 'Content-Type: application/json' \
+  -d '{"user_id":"user-1"}'
 curl -sS -X POST http://127.0.0.1:8000/v1/dispatch \
   -H 'Content-Type: application/json' \
-  -d '{"user_id":"user-2","event_type":"PleaseFAIL","payload":{}}'
+  -d '{"user_id":"user-1","event_type":"UserSignedUp","payload":{}}'
 
-# health
-curl -sS http://127.0.0.1:8000/health
+# unmute
+curl -sS -X POST http://127.0.0.1:8000/v1/unmute \
+  -H 'Content-Type: application/json' \
+  -d '{"user_id":"user-1"}'
+
+# forced email failure (FAIL in event_type) — returns partial_failure + retry_id
+curl -sS -X POST http://127.0.0.1:8000/v1/dispatch \
+  -H 'Content-Type: application/json' \
+  -d '{"user_id":"user-1","event_type":"PleaseFAIL","payload":{}}'
 ```
 
 ## Architecture / refactor summary
@@ -50,6 +63,7 @@ refactor commit.
 ```
 src/alert_dispatcher/
   api/dispatch.py               # HTTP only: Pydantic body -> service -> response
+  api/mute.py                   # POST /v1/mute and /v1/unmute
   services/dispatch_service.py  # orchestration: user lookup, mute check, fan-out, retry persist
   providers/email.py            # mock email + email masking + FAIL simulation
   providers/slack.py            # mock slack
@@ -117,10 +131,10 @@ What I would NOT change in a second timebox:
   unmuting an unmuted user is a no-op; a muted user does not trigger
   any provider call or any retry row (asserted in
   `tests/test_dispatch_api.py::test_dispatch_muted_user_returns_status_muted_and_no_sends`).
-- **Admin surface:** there is no `/v1/mute` endpoint in this PR --
-  the brief only requires the dispatch-side behavior. The repository
-  functions are reachable from a future admin router with no further
-  refactor.
+- **Admin surface:** `POST /v1/mute` and `POST /v1/unmute` are
+  implemented in `api/mute.py`. They call the same repository
+  functions (`mute_repo.mute` / `mute_repo.unmute`) and return
+  `{"user_id": "...", "muted": true/false}`.
 
 ## Retry / email failure handling
 
@@ -211,8 +225,8 @@ What I would NOT change in a second timebox:
   set; under multi-worker uvicorn it would be per-worker. Retries
   are SQLite-only, so `WAL` would be advisable for >1 writer; out
   of scope for this exercise.
-- **No admin API for mute** in this PR; the repository functions are
-  the supported surface for now.
+- **Mute admin API** (`/v1/mute`, `/v1/unmute`) is implemented;
+  state is still in-memory and does not survive a restart.
 - **No background worker** is implemented; `list_due` /
   `mark_succeeded` / `mark_exhausted` / `bump_attempt` are exercised
   only by tests. SUBMISSION explains the loop a worker would run.
@@ -231,12 +245,13 @@ What I would NOT change in a second timebox:
 
 ## Tests
 
-`pytest -q` -- 25 tests, all green.
+`pytest -q` — 28 tests, all green.
 
 | File | Covers |
 | --- | --- |
-| `tests/test_dispatch_api.py` (9) | health, happy-path single-channel, full fan-out, unknown user (404), 422 from Pydantic for missing/empty fields, muted user, email FAIL persists retry without 500, email failure does not block slack |
-| `tests/test_email_provider.py` (8) | `mask_email` happy and garbage input, masked recipient in logs, API-key suffix in logs, FAIL in subject, FAIL in body, case-insensitive FAIL, no body / raw email leak on failure log |
+| `tests/test_dispatch_api.py` (9) | health, happy-path single-channel, full fan-out, unknown user (404), 422 for bad input, muted user, email FAIL persists retry without 500, email failure does not block slack |
+| `tests/test_email_provider.py` (8) | `mask_email` happy + garbage input, masked recipient in logs, API-key suffix in logs, FAIL in subject/body/case-insensitive, no raw email in failure log |
+| `tests/test_mute_api.py` (3) | `POST /v1/mute` → dispatch returns muted, `POST /v1/unmute` → dispatch resumes, empty user_id → 422 |
 | `tests/test_mute_repository.py` (3) | is_muted defaults false, mute makes it true, unmute clears it |
 | `tests/test_retry_repository.py` (5) | default columns on insert, error truncated to 500 chars, mark_succeeded/exhausted, bump_attempt increments + reschedules, list_due returns past rows only |
 
