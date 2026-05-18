@@ -74,7 +74,11 @@ class ChannelResult(BaseModel):
 # ---------------------------------------------------------------------------
 # `status` is one of:
 #   "dispatched"        -> all channels succeeded
-#   "partial_failure"   -> at least one channel failed (today: only email)
+#   "partial_failure"   -> at least one channel failed (today: only email).
+#                          For single-channel users this means ALL channels
+#                          failed. Callers can detect that case without a
+#                          separate status: check every entry in `channels`
+#                          has status == "failed".
 #   "muted"             -> user is on the mute list, no sends were attempted
 #   "no_op"             -> user exists but has no channel preferences
 class DispatchResponse(BaseModel):
