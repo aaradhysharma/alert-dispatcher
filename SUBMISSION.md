@@ -5,20 +5,20 @@ Replace this file with your own write-up before the review. Remove sections you 
 ## How to run
 
 used WSL 
-"""
+'''
 Commands:
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -U pip
 pip install -e ".[dev]"
 cp .env.example .env        # put value in mock field
-"""
+
 running API 
 uvicorn alert_dispatcher.main:app --reload --host 0.0.0.0 --port 8000
 Test 
 ruff check src tests
 pytest -q
-
+'''
 optional for GitHub action (you need gh installed and signed in ) otherwise you can just commit and sync) tests will run automatically.
 
 
