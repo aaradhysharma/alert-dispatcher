@@ -231,14 +231,14 @@ What I would NOT change in a second timebox:
 
 ## Tests
 
-`pytest -q` -- 33 tests, all green.
+`pytest -q` -- 25 tests, all green.
 
 | File | Covers |
 | --- | --- |
-| `tests/test_dispatch_api.py` | health, happy-path single-channel, full fan-out, unknown user (404), 422 from Pydantic for missing/empty fields, muted user, email FAIL persists retry without 500, email failure does not block slack |
-| `tests/test_email_provider.py` | `mask_email` boundary cases, masked recipient logging, API-key suffix logging, FAIL in subject vs body, case-insensitive FAIL, no body / raw email leak on failure log |
-| `tests/test_mute_repository.py` | is_muted defaults false, mute/unmute idempotency |
-| `tests/test_retry_repository.py` | idempotent init, default columns, error truncation, mark_succeeded/exhausted, bump_attempt, list_due past vs future |
+| `tests/test_dispatch_api.py` (9) | health, happy-path single-channel, full fan-out, unknown user (404), 422 from Pydantic for missing/empty fields, muted user, email FAIL persists retry without 500, email failure does not block slack |
+| `tests/test_email_provider.py` (8) | `mask_email` happy and garbage input, masked recipient in logs, API-key suffix in logs, FAIL in subject, FAIL in body, case-insensitive FAIL, no body / raw email leak on failure log |
+| `tests/test_mute_repository.py` (3) | is_muted defaults false, mute makes it true, unmute clears it |
+| `tests/test_retry_repository.py` (5) | default columns on insert, error truncated to 500 chars, mark_succeeded/exhausted, bump_attempt increments + reschedules, list_due returns past rows only |
 
 ## AI disclosure
 

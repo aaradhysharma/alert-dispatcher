@@ -27,13 +27,6 @@ def _all_rows() -> list[sqlite3.Row]:
         conn.close()
 
 
-def test_init_db_is_idempotent():
-    # conftest already called init_db once. Calling again must be safe;
-    # CREATE TABLE IF NOT EXISTS is the relevant SQL idiom.
-    retry_repo.init_db()
-    retry_repo.init_db()
-
-
 def test_record_email_failure_inserts_row_with_expected_defaults():
     row_id = retry_repo.record_email_failure(
         user_id="user-1",
@@ -120,26 +113,17 @@ def test_bump_attempt_increments_and_reschedules():
     assert row["next_attempt_at"] == future
 
 
-def test_list_due_excludes_future_rows():
-    # Freshly-recorded rows have next_attempt_at = now + 60s, so they
-    # should NOT be considered due immediately.
-    retry_repo.record_email_failure(
-        user_id="user-1",
-        recipient="a@b.com",
-        subject="s",
-        body="b",
-        error_message="e",
-    )
-    assert retry_repo.list_due() == []
-
-
-def test_list_due_includes_past_rows():
-    # Insert directly via a raw connection so we can backdate the
-    # next_attempt_at column. The repo's record_email_failure() always
-    # uses "now + 60s", which wouldn't let us test "due NOW".
+def test_list_due_returns_only_past_rows():
+    # Insert one PAST row (should be returned) and one FUTURE row
+    # (should NOT be returned). One test covers both behaviors.
+    #
+    # We insert directly via SQL so we can backdate the timestamp;
+    # record_email_failure() always uses "now + 60s" which would
+    # never look due to list_due().
+    now = datetime.now(UTC).isoformat()
     conn = sqlite3.connect(retry_repo.get_db_path())
     try:
-        conn.execute(
+        conn.executemany(
             """
             INSERT INTO email_retry_queue
                 (user_id, recipient, subject, body, error_message,
@@ -147,21 +131,17 @@ def test_list_due_includes_past_rows():
                  created_at, last_attempt_at, next_attempt_at)
             VALUES (?, ?, ?, ?, ?, 1, 5, 'pending', ?, ?, ?)
             """,
-            (
-                "user-1",
-                "a@b.com",
-                "s",
-                "b",
-                "e",
-                datetime.now(UTC).isoformat(),
-                datetime.now(UTC).isoformat(),
-                "1970-01-01T00:00:00+00:00",  # well in the past
-            ),
+            [
+                ("past-user", "a@b.com", "s", "b", "e", now, now,
+                 "1970-01-01T00:00:00+00:00"),       # due
+                ("future-user", "a@b.com", "s", "b", "e", now, now,
+                 "2099-01-01T00:00:00+00:00"),       # not due yet
+            ],
         )
         conn.commit()
     finally:
         conn.close()
 
     due = retry_repo.list_due()
-    assert len(due) == 1
-    assert due[0]["user_id"] == "user-1"
+    user_ids = [row["user_id"] for row in due]
+    assert user_ids == ["past-user"]

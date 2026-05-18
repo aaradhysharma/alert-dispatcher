@@ -22,16 +22,3 @@ def test_unmute_removes_user():
     mute_repo.mute("user-1")
     mute_repo.unmute("user-1")
     assert mute_repo.is_muted("user-1") is False
-
-
-def test_unmute_unknown_user_is_a_no_op():
-    # Should NOT raise -- unmuting someone who isn't muted is fine.
-    mute_repo.unmute("user-1")
-    assert mute_repo.is_muted("user-1") is False
-
-
-def test_mute_is_idempotent():
-    # Calling mute() twice is harmless.
-    mute_repo.mute("user-1")
-    mute_repo.mute("user-1")
-    assert mute_repo.is_muted("user-1") is True

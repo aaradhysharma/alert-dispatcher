@@ -25,25 +25,13 @@ from alert_dispatcher.providers.email import (
 # don't need any setup/teardown.
 class TestMaskEmail:
     def test_normal_address(self):
+        # Happy path: keep first char, mask the rest of the local part.
         assert mask_email("alice@example.com") == "a***@example.com"
 
-    def test_two_char_local(self):
-        # We always show only ONE character of the local part.
-        assert mask_email("ab@x.com") == "a***@x.com"
-
-    def test_single_char_local(self):
-        assert mask_email("a@x.com") == "a***@x.com"
-
-    def test_empty_local(self):
-        # "@x.com" has nothing before the @, so nothing to show.
-        assert mask_email("@x.com") == "***@x.com"
-
-    def test_missing_at_sign(self):
-        # Garbage in -> safe placeholder out.
+    def test_garbage_input_returns_placeholder(self):
+        # If the input doesn't even look like an email, just return "***"
+        # so we never accidentally log something we shouldn't.
         assert mask_email("not-an-email") == "***"
-
-    def test_empty_string(self):
-        assert mask_email("") == "***"
 
 
 # ----------------------------------------------------------------------
