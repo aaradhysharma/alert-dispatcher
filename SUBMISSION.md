@@ -262,7 +262,12 @@ What I would NOT change in a second timebox:
   and they would have made the diff much harder to review.
   I also did not adopt a custom 422 handler; FastAPI/Pydantic give
   it for free when the body is typed.
+- **Commenting style:** Heavy inline comments throughout the codebase
+  are a deliberate choice. The brief asks for code you could explain
+  in review, and writing the "why" down as I went was how I built that
+  understanding as I went. Comments explain intent and tradeoffs, not
+  just what the line does.
 - **Verification ran locally:**
   - `ruff check src tests` -- clean.
-  - `pytest -q` -- 33 passed.
+  - `pytest -q` -- 25 passed.
   - Manual `curl` of happy path, FAIL path, and `/health`.
