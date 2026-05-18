@@ -23,6 +23,17 @@ from pydantic import BaseModel, Field
 # ---------------------------------------------------------------------------
 # Request body for POST /v1/dispatch
 # ---------------------------------------------------------------------------
+class MuteRequest(BaseModel):
+    """Body for POST /v1/mute and POST /v1/unmute."""
+
+    user_id: str = Field(..., min_length=1)
+
+
+class MuteStatusResponse(BaseModel):
+    user_id: str
+    muted: bool
+
+
 class DispatchRequest(BaseModel):
     # The target user's id. min_length=1 so an empty string fails validation.
     user_id: str = Field(..., min_length=1)

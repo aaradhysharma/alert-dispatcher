@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from alert_dispatcher.api.dispatch import router as dispatch_router
+from alert_dispatcher.api.mute import router as mute_router
 from alert_dispatcher.repositories import retry as retry_repo
 
 
@@ -35,6 +36,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     app.include_router(dispatch_router)
+    app.include_router(mute_router)
     return app
 
 
