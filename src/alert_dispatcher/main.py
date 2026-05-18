@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from alert_dispatcher import __version__
 from alert_dispatcher.api.dispatch import router as dispatch_router
 from alert_dispatcher.api.mute import router as mute_router
 from alert_dispatcher.repositories import retry as retry_repo
@@ -32,7 +33,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Alert Dispatcher",
         description="Notification fan-out service.",
-        version="0.2.0",      # runtime version; pyproject.toml is locked at 0.1.0
+        version=__version__,  # single source of truth; pyproject.toml stays locked at 0.1.0
         lifespan=lifespan,
     )
     app.include_router(dispatch_router)
